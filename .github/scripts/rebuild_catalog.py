@@ -23,15 +23,19 @@ Usage:
   python3 rebuild_catalog.py --repo nullcpy/rvb --manifest-dir rvb-website \
       --out data.json [--existing data.json]
 Env:
+  RVB_NAMING_DIR           directory holding rvb's canonical naming.py (filename and
+                           architecture rules are rvb's, imported not mirrored - see
+                           _load_rvb_naming). Unset falls back to a `rvb` checkout
+                           beside this repo, which is the local-dev layout.
   MIN_RATIO (default 0.6)  fraction of existing apps/builds the new catalog must
                            retain or the run aborts (circuit breaker)
   FORCE=1                  skip circuit breaker
   GH_TOKEN/GITHUB_TOKEN    used implicitly by the gh CLI
 """
 import argparse
+import importlib.util
 import json
 import os
-import re
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -40,13 +44,42 @@ from pathlib import Path
 
 ARCH_ORDER = {"arm64": 0, "arm": 1, "all": 2,
               "universal": 3, "x86_64": 4, "x86": 5}
-FILE_PREFIX_RE = re.compile(r"^(.*?)-(?:v[0-9]|module-)", re.IGNORECASE)
 
-# NOTE: normalize_key / normalize_arch / extract_arch / fallback_entry below
-# are a dependency-free mirror of rvb's canonical .github/scripts/naming.py.
-# If filename-parsing behavior changes there, change it here in the same
-# series of commits — silent divergence between builder and website parsing
-# is the bug class the manifest architecture exists to prevent.
+
+# Filename parsing belongs to the builder, not to us: rvb applies these same rules
+# when it writes a manifest, and the site groups apps with them. They are imported
+# from rvb's canonical .github/scripts/naming.py - the rebuild job clones it, a local
+# run resolves it from a `rvb` checkout beside this repo.
+#
+# There is deliberately NO mirrored copy of these functions in this file and no
+# fallback to one: a stale duplicate parses differently in silence, which is the
+# exact bug class the single-source-of-truth design exists to remove. A missing
+# clone fails the run loudly instead.
+def _load_rvb_naming():
+    candidates = []
+    env = os.environ.get("RVB_NAMING_DIR")
+    if env:
+        candidates.append(Path(env) / "naming.py")
+    candidates.append(Path(__file__).resolve().parents[3] /
+                      "rvb" / ".github" / "scripts" / "naming.py")
+    for path in candidates:
+        if path.is_file():
+            spec = importlib.util.spec_from_file_location(
+                "rvb_naming", str(path))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+    sys.exit(
+        "FATAL: rvb's naming.py was not found (looked for: %s). Set RVB_NAMING_DIR "
+        "to the directory containing it; rebuild-catalog.yml clones rvb's main for "
+        "exactly this." % ", ".join(str(c) for c in candidates))
+
+
+_naming = _load_rvb_naming()
+normalize_key = _naming.normalize_key
+normalize_arch = _naming.normalize_arch
+extract_arch = _naming.extract_arch
+file_prefix = _naming.file_prefix
 
 
 def run_gh(args, check=True):
@@ -58,49 +91,8 @@ def run_gh(args, check=True):
     return result.stdout
 
 
-def normalize_key(s):
-    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
-
-
-def normalize_arch(arch_raw):
-    a = (arch_raw or "").lower().strip()
-    if "arm64" in a or "aarch64" in a:
-        return "arm64"
-    if "arm" in a or "armeabi" in a:
-        return "arm"
-    if a in ["all", "universal"] or a.endswith("-all") or a.endswith("-universal"):
-        return "all"
-    if "x86_64" in a or "x64" in a:
-        return "x86_64"
-    if "x86" in a:
-        return "x86"
-    return a or "all"
-
-
-def extract_arch(fname, version=""):
-    match = re.search(
-        r"-(arm64-v8a|armeabi-v7a|arm-v7a|aarch64|arm64|arm32|arm|x86_64|x64|x86|universal|all)(?:-(?:apk|module))?\.(?:apk|zip)$",
-        fname,
-        re.IGNORECASE,
-    )
-    if match:
-        return match.group(1)
-    if version:
-        clean_ver = re.escape(version.lstrip("v"))
-        m = re.search(
-            rf"-v?{clean_ver}-([a-zA-Z0-9_-]+?)(?:-(?:apk|module))?\.(?:apk|zip)$", fname, re.IGNORECASE)
-        if m:
-            return m.group(1)
-    name_no_ext = re.sub(r"\.(?:apk|zip)$", "", fname, flags=re.IGNORECASE)
-    name_no_mode = re.sub(r"-(?:apk|module)$", "",
-                          name_no_ext, flags=re.IGNORECASE)
-    parts = name_no_mode.split("-")
-    return parts[-1] if len(parts) > 1 else "all"
-
-
 def fallback_entry(fname, origin_build, published_at):
-    m = FILE_PREFIX_RE.match(fname)
-    name = m.group(1) if m else fname.rsplit(".", 1)[0]
+    name = file_prefix(fname)
     return {
         "name": name,
         "version": None,

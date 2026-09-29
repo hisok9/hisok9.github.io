@@ -40,9 +40,25 @@ jobs:
         env:
           RVB_REPO: nullcpy/rvb
 
+      - name: Checkout rvb naming rules (filename parsing source of truth)
+        # rebuild_catalog.py imports normalize_key/normalize_arch/extract_arch/
+        # file_prefix from rvb's .github/scripts/naming.py instead of mirroring them,
+        # so the builder and the catalogue cannot parse a filename differently.
+        # Blob-filtered + sparse: this fetches the script directory, not the repo.
+        run: |
+          git clone --depth 1 --filter=blob:none --no-checkout \
+            "https://github.com/$RVB_REPO.git" rvb-code
+          git -C rvb-code sparse-checkout init --cone
+          git -C rvb-code sparse-checkout set .github/scripts
+          git -C rvb-code checkout main
+          test -f rvb-code/.github/scripts/naming.py
+        env:
+          RVB_REPO: nullcpy/rvb
+
       - name: Rebuild data.json from website branch manifests
         env:
           RVB_REPO: nullcpy/rvb
+          RVB_NAMING_DIR: ${{ github.workspace }}/rvb-code/.github/scripts
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # available by default; gh reads this implicitly
         run: |
           cp data.json temp_old_data.json
