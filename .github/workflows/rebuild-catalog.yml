@@ -11,6 +11,10 @@ on:
         description: "Rebuild and diff only, do not commit/push"
         type: boolean
         default: false
+      force:
+        description: "Skip the shrink circuit breaker (bootstrap a fresh fork, or an intentional large prune)"
+        type: boolean
+        default: false
 
 concurrency:
   group: catalog-rebuild
@@ -60,6 +64,15 @@ jobs:
           RVB_REPO: hisok9/rvb
           RVB_NAMING_DIR: ${{ github.workspace }}/rvb-code/.github/scripts
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # available by default; gh reads this implicitly
+          # This fork predates upstream's release history: 2 releases against
+          # upstream's 100+, while the inherited data.json still holds upstream's
+          # 122 apps / 718 builds. Without the first override the rebuild aborts
+          # with "only 2 releases (< 10). Refusing to rebuild."; lifting only that
+          # one then trips the shrink circuit breaker (1/122 apps). Both are env
+          # knobs by design, so the script itself is untouched. The breaker is
+          # bypassed only when `force` is checked, leaving scheduled runs guarded.
+          MIN_RELEASES_THRESHOLD: "1"
+          FORCE: ${{ github.event.inputs.force == 'true' && '1' || '0' }}
         run: |
           cp data.json temp_old_data.json
           python3 .github/scripts/rebuild_catalog.py --repo "$RVB_REPO" --manifest-dir rvb-website --out data.json.new --existing temp_old_data.json
