@@ -1,15 +1,15 @@
-# Website Architecture & Configuration Guide (`nullcpy.github.io`)
+# Website Architecture & Configuration Guide (`hisok9.github.io`)
 
-This document details the configuration, data schema, styling, and synchronization mechanisms powering the **NullStore** web catalog.
+This document details the configuration, data schema, styling, and synchronization mechanisms powering the **My Store** web catalog.
 
 ---
 
 ## 1. Architecture Overview
 
 - **Stack**: Pure Vanilla HTML5, CSS3, and modern ECMAScript (zero runtime frameworks or bundled bloat).
-- **Hosting**: GitHub Pages (`https://nullcpy.github.io/`).
+- **Hosting**: GitHub Pages (`https://hisok9.github.io/`).
 - **Data Source**: Static [`data.json`](./data.json) file serialized under **Schema v2**.
-- **Decoupled Design**: The build pipeline in [`nullcpy/rvb`](https://github.com/nullcpy/rvb) pushes catalog updates over GitHub API. The website operates entirely as an independent client.
+- **Decoupled Design**: The build pipeline in [`hisok9/rvb`](https://github.com/hisok9/rvb) pushes catalog updates over GitHub API. The website operates entirely as an independent client.
 
 ---
 
@@ -98,7 +98,7 @@ Represents an individual build artifact release:
   "variant": null,
   "subVariant": null,
   "publishedAt": "2026-09-08T02:00:00.000Z",
-  "releaseUrl": "https://github.com/nullcpy/rvb/releases/tag/380576727",
+  "releaseUrl": "https://github.com/hisok9/rvb/releases/tag/380576727",
   "patchSourceRef": 0,
   "changelogRef": 0,
   "patchSetRef": 0,
@@ -107,7 +107,7 @@ Represents an individual build artifact release:
       "name": "youtube-morphe-v19.16.39-arm64-v8a.apk",
       "size": 134217728,
       "download_count": 4200,
-      "browser_download_url": "https://github.com/nullcpy/rvb/releases/download/380576727/youtube-morphe-v19.16.39-arm64-v8a.apk",
+      "browser_download_url": "https://github.com/hisok9/rvb/releases/download/380576727/youtube-morphe-v19.16.39-arm64-v8a.apk",
       "arch": "arm64"
     }
   ]
@@ -128,7 +128,7 @@ All website settings, categories, and dynamic notices are configured directly in
 
 ```javascript
 const CONFIG = {
-  owner: "nullcpy",
+  owner: "hisok9",
   repo: "rvb",
   knownArchs: [
     "arm64-v8a", "arm64", "aarch64",
@@ -212,7 +212,7 @@ appNotices: [
 
 ## 4. Obtainium Integration
 
-NullStore provides native integration with [Obtainium](https://github.com/ImranR98/Obtainium):
+My Store provides native integration with [Obtainium](https://github.com/ImranR98/Obtainium):
 
 - **Label Standard**: Uses square brackets for subvariants to prevent nested double parentheses:
   $$\text{Format: } \text{AppName} \text{ (Brand - Variant [SubVariant])}$$
@@ -245,4 +245,4 @@ Unmatched apps return `Infinity` and are filtered out instantly.
   - [`.github/scripts/rebuild_catalog.py`](.github/scripts/rebuild_catalog.py) regenerates the entire catalog in **this** repo and is the *only* component that writes `data.json`. Its `finalize()` step emits the deduped schema: a top-level `patchSets` table with per-build integer `patchSetRef`, channel pointers stored as bare **build-id strings**, `releaseId` omitted when equal to `build`, and asset `fileType` omitted (derived client-side).
   - It runs via [`rebuild-catalog.yml`](.github/workflows/rebuild-catalog.yml) on `repository_dispatch` (from rvb releases), the ~6-hourly schedule safety-net, or manual `workflow_dispatch`, then self-dispatches a Pages deploy.
 - **rvb is an input source only**:
-  - `nullcpy/rvb` does **not** write or patch `data.json`. `rebuild_catalog.py` reads it through the GitHub API — each release's `build.json` manifest plus the releases/assets listings — and derives every field locally.
+  - `hisok9/rvb` does **not** write or patch `data.json`. `rebuild_catalog.py` reads it through the GitHub API — each release's `build.json` manifest plus the releases/assets listings — and derives every field locally.

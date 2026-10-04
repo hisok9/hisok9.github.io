@@ -20,7 +20,7 @@ Inputs:
     from asset filenames, so download buttons never disappear.
 
 Usage:
-  python3 rebuild_catalog.py --repo nullcpy/rvb --manifest-dir rvb-website \
+  python3 rebuild_catalog.py --repo hisok9/rvb --manifest-dir rvb-website \
       --out data.json [--existing data.json]
 Env:
   RVB_NAMING_DIR           directory holding rvb's canonical naming.py (filename and
@@ -550,7 +550,7 @@ def validate(catalog, existing_path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
-        "--repo", default=os.environ.get("RVB_REPO", "nullcpy/rvb"))
+        "--repo", default=os.environ.get("RVB_REPO", "hisok9/rvb"))
     ap.add_argument("--out", default="data.json")
     ap.add_argument("--existing", default=None,
                     help="existing data.json for shrink checks")
